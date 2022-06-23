@@ -7,9 +7,10 @@ import datetime
 from PIL import ImageFont, ImageDraw, Image
 import time
 import requests
+import keyboard
 
 
-def cam(previewName, camID,q1,q2):
+def cam(previewName, camID,q1,q2,q3,):
 
     # font
     # font = ImageFont.truetype('./fonts/SCDream6.otf',20)
@@ -17,9 +18,6 @@ def cam(previewName, camID,q1,q2):
 
     # 촬영했을때 image가 두개 저장되는거 방지
     name_list = []
-
-    # API url
-    api_url = 'http://thenewme.m47rix.com/run'
 
     max_num_hands = 1
 
@@ -46,6 +44,8 @@ def cam(previewName, camID,q1,q2):
     width = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
     height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
 
+    # print(width,height)
+
     while cap.isOpened():   
         now = datetime.datetime.now()
         # nowDatetime = now.strftime('%Y-%m-%d %H:%M:%S')
@@ -57,7 +57,7 @@ def cam(previewName, camID,q1,q2):
 
         img = cv2.flip(img, 1)
 
-        resize_width, resize_height = 640,480     # 2560, 1600
+        resize_width, resize_height = 640,480     # 2560, 1600  # 1920, 1440
         img = cv2.resize(img, (resize_width,resize_height))
 
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
@@ -111,68 +111,108 @@ def cam(previewName, camID,q1,q2):
                 cv2.putText(img, text=str(cnt), org=(int(resize_width*1/2),int(resize_height*1/2)),
                     fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=4, color=text_color, thickness=5)
 
-        if q2.qsize() == 4:
+        if q2.qsize()==4:
             name_list.append(nowDatetime_path)
 
-            # cv2.imwrite("./image/"+nowDatetime_path+".png", img)
             cv2.imwrite("D:/ai-festival/practice/image/"+name_list[0]+".png", img)   # image save
             cv2.rectangle(img, (0,0),(resize_width,resize_height),(255,255,255),-1)  # shoot
-
-            ## API 통신
-            files = {'photo': open('D:/ai-festival/practice/image/'+name_list[0]+'.png' , 'rb'), 'referral_id':'0000'}
-            response = requests.post(api_url, files=files)
             
-            try:
-                data = response.json()     
-                result_url = data['result_path']
-                print(data)
-                filename = result_url.split("/")[-1]         # url에서 맨뒤 "/" 뒤에 이름 가져오기
+            if q3.qsize()==0:
+                q3.put((name_list[0]))
 
-                save_img = Image.open(requests.get(result_url, stream = True).raw)    # 결과 url에서 image 받아서 save
-                save_img.save('D:/ai-festival/practice/save_image/'+ filename)
+            # ## API 통신 + 결과 이미지 저장
+            # files = {'photo': open('D:/ai-festival/practice/image/'+name_list[0]+'.png' , 'rb'), 'referral_id':'0000'}
+            # response = requests.post('http://thenewme.m47rix.com/run', files=files)
+            
+            # try:
+            #     data = response.json()     
+            #     result_url = data['result_path']
+            #     print(data)
+            #     filename = result_url.split("/")[-1]         # url에서 맨뒤 "/" 뒤에 이름 가져오기
 
-            except requests.exceptions.RequestException:
-                print(response.text)
-
+            #     save_img = Image.open(requests.get(result_url, stream = True).raw)    # 결과 url에서 image 받아서 save
+            #     save_img.save('D:/ai-festival/practice/save_image/'+ filename)
+                
+            # except requests.exceptions.RequestException:
+            #     print(response.text)
+            
         if q2.qsize()==5:
-            upload_image = cv2.imread('D:/ai-festival/practice/save_image/'+ filename)
+            cv2.imshow(previewName, img)
+
+        if q2.qsize()==6:
+            upload_image = cv2.imread('D:/ai-festival/practice/save_image/after.png')
             img = cv2.addWeighted(img,0,upload_image,1,0)
             cv2.imshow(previewName, img)
-        else:
-            cv2.imshow(previewName, img)
 
-        if q2.qsize()>=6:
+        if q2.qsize()>=7:
           name_list=[]
           img = cv2.addWeighted(img,1,upload_image,0,0)
 
+        cv2.imshow(previewName, img)
 
         if cv2.waitKey(5) & 0xFF == 27:
             break
 
 
-def handler(q1,q2):
+def handler(q1,q2,q3):
 
     while True:
-        time.sleep(0.1)
+        time.sleep(0.01)
 
-        if q1.qsize() != 0:      # v를 했을때
-            q2.put((1))          # q2 에 put
-            if q2.qsize() >=1 and q2.qsize() <= 4:
+        if q1.qsize() != 0:      # v를 하고난 이후
+            if q2.qsize()==0:
+                q2.put((1))          # q2 size를 0 -> 1
+            if q2.qsize() >=1 and q2.qsize() <= 3: # q2 size 1,2,3,4 -> countdown 3,2,1 + 찰칵
                 time.sleep(1)
-            if q2.qsize() == 5:
-                time.sleep(10)
-            if q2.qsize()>=6:  # q2 큐의 size가 5 이상이면
-                time.sleep(3)   # 3초를 쉬고 q1,q2를 초기화
-                q1.queue.clear()
-                q2.queue.clear()
+                q2.put((1))
+            
+            if q2.qsize()==4:
+                time.sleep(1)
+                q2.put((1))
+            
+            if q3.qsize()==1 and q2.qsize()==5:   # q3에 촬영된 이미지 이름이 들어오고, q2 size가 4일때(=촬영했을때)
+                shoot_image_time = q3.get()
+                # print(shoot_image_time)
+                # q2.put((1))   # q2 size 5만들어주기
+                ## API 통신 + 결과 이미지 저장
+                files = {'photo': open('D:/ai-festival/practice/image/'+shoot_image_time+'.png' , 'rb'), 'referral_id':'0000'}
+                response = requests.post('http://thenewme.m47rix.com/run', files=files)
+                print(response)
+                
+                try:
+                    data = response.json()     
+                    result_url = data['result_path']
+                    print(data)
+                    filename = result_url.split("/")[-1]         # url에서 맨뒤 "/" 뒤에 이름 가져오기
+
+                    save_img = Image.open(requests.get(result_url, stream = True).raw)    # 결과 url에서 image 받아서 save
+                    save_img.save('D:/ai-festival/practice/save_image/'+ filename)
+
+                    time.sleep(1)
+                    q2.put((1))   # q2의 size가 6로 가기위해
+
+                except requests.exceptions.RequestException:
+                    print(response.text)
+                    print("한번더 촬영해주세요")
+                    q2.put((1))   # 오류나도 다음 스테이지로 넘어가기위해서
+                
+            if q2.qsize() == 6:  # 촬영후 사진 10초간 보여줌
+                if keyboard.is_pressed("space"):
+                    q2.put((1))
+
+            if q2.qsize()>=7:  # q2 큐의 size가 5 이상이면
+                time.sleep(2)   # 2초를 쉬고 q1,q2를 초기화
+                q1.queue.clear()   # v를 안한상태로 되돌림
+                q2.queue.clear() 
 
 
 if __name__ == '__main__':
     q1 = Queue()
     q2 = Queue()
+    q3 = Queue(1)
 
-    thread1 = threading.Thread(target=cam, args=("Camera 0",0,q1,q2,))
-    thread2 = threading.Thread(target=handler, args=(q1,q2,))
+    thread1 = threading.Thread(target=cam, args=("Camera 0",0,q1,q2,q3,))
+    thread2 = threading.Thread(target=handler, args=(q1,q2,q3,))
 
     thread1.start()
     thread2.start()
