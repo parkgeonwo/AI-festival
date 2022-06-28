@@ -1,3 +1,4 @@
+from distutils.command.upload import upload
 import threading
 from queue import Queue
 import cv2
@@ -44,7 +45,7 @@ def cam(previewName, camID,q1,q2,q3,):
     width = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
     height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
 
-    resize_width, resize_height = 1280,960    # 2560, 1600  # 1920, 1440 # 2048,1280
+    resize_width, resize_height = 2048,1280   # 2560, 1600  # 1920, 1440 # 2048,1280
 
     while cap.isOpened():   
         now = datetime.datetime.now()
@@ -61,6 +62,9 @@ def cam(previewName, camID,q1,q2,q3,):
 
         img = cv2.flip(img, 1)
         img = cv2.resize(img, (resize_width,resize_height))
+
+        ### 화면 밝기 조절
+        img = cv2.add(img,(60,60,60,0))
 
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
@@ -94,10 +98,10 @@ def cam(previewName, camID,q1,q2,q3,):
                     # print(q1.qsize())
 
         ### 한글 넣기 (qsize 3이하)
-        if q2.qsize() <= 3:
+        if q2.qsize() == 0:
             img = Image.fromarray(img)
             draw = ImageDraw.Draw(img)
-            draw.text( xy=(30,30), text="V를 하면 사진이 찍힙니다.", font=font, fill=(0,0,0)  )
+            draw.text( xy=((resize_width/4)+100,30), text="V를 하면 AI가 캐릭터를 만듭니다.", font=font, fill=(0,0,0)  )
             img = np.array(img)
 
         # text_color = (0,255,255)
@@ -114,7 +118,7 @@ def cam(previewName, camID,q1,q2,q3,):
                 img_w, img_h, img2_w, img2_h = resize_width, resize_height, cols, rows
 
                 # roi = img[50:rows+50,50:cols+50] #로고파일 필셀값을 관심영역(ROI)으로 저장함.
-                roi = img[int(0.5*(img_h-img2_h)+0.25*img_h):int(0.5*(img_h+img2_h)+0.25*img_h),int(0.5*(img_w-img2_w)):int(0.5*(img_w+img2_w))] #로고파일 필셀값을 관심영역(ROI)으로 저장함.
+                roi = img[int(0.5*(img_h-img2_h)+0.2*img_h):int(0.5*(img_h+img2_h)+0.2*img_h),int(0.5*(img_w-img2_w)):int(0.5*(img_w+img2_w))] #로고파일 필셀값을 관심영역(ROI)으로 저장함.
 
                 gray = cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY) #로고파일의 색상을 그레이로 변경
                 ret, mask = cv2.threshold(gray, 10, 255, cv2.THRESH_BINARY) #배경은 흰색으로, 그림을 검정색으로 변경
@@ -130,34 +134,41 @@ def cam(previewName, camID,q1,q2,q3,):
                 dst = cv2.add(img_bg, img2_fg)
                 
                 # img[50:rows+50,50:cols+50] = dst #img에 dst값 합성
-                img[int(0.5*(img_h-img2_h)+0.25*img_h):int(0.5*(img_h+img2_h)+0.25*img_h),int(0.5*(img_w-img2_w)):int(0.5*(img_w+img2_w))] = dst
+                img[int(0.5*(img_h-img2_h)+0.2*img_h):int(0.5*(img_h+img2_h)+0.2*img_h),int(0.5*(img_w-img2_w)):int(0.5*(img_w+img2_w))] = dst
 
-        ### q2의 size가 4일때는 찰칵 화면
+        ### q2의 size가 4일때는 이미지 저장 및 q3에 저장된 이미지 이름 넣어주기
         if q2.qsize()==4:
             name_list.append(nowDatetime_path)
-
             cv2.imwrite("D:/ai-festival/practice/image/"+name_list[0]+".png", img)   # image save
-            cv2.rectangle(img, (0,0),(resize_width,resize_height),(255,255,255),-1)  # shoot
-            
-            if q3.qsize() !=0:
-                q3.queue.clear()
 
+            if q3.qsize()!=0:
+                q3.queue.clear()
             if q3.qsize()==0:
                 # print(name_list[0], "cam")
-                q3.put((name_list[0]))
+                q3.put((name_list[0]))  # q3에 찍힌 사진 이름 주기
+                q2.put((1))       # q2 size를 5로
         
-        ### q2 size가 5일때는 그냥 웹캠
+        ### q2 size가 5일때는 찰칵 이펙트
         if q2.qsize()==5:
+            cv2.rectangle(img, (0,0),(resize_width,resize_height),(255,255,255),-1)  # shoot
+            
+        ### q2 size가 6일때는 그냥 웹캠
+        if q2.qsize()==6:
             cv2.imshow(previewName, img)
 
-        ### q2 size가 6일때는 API에서 받아온 이미지 노출
-        if q2.qsize()==6:
-            upload_image = cv2.imread('D:/ai-festival/practice/save_image/after.png')
+        ### q2 size가 7일때는 API에서 받아온 이미지 노출
+        if q2.qsize()==7:
+            upload_image = cv2.imread('D:/ai-festival/practice/save_image/'+name_list[0]+'-after.png')
+            
+            if upload_image == None:
+                upload_image = cv2.imread('D:/ai-festival/practice/save_image/error.png')
+                upload_image = cv2.resize(upload_image, (resize_width,resize_height))
+
             img = cv2.addWeighted(img,0,upload_image,1,0)
             cv2.imshow(previewName, img)
 
-        ### q2 size가 7일때는 다시웹캠, 모든 설정값 초기화
-        if q2.qsize()>=7:
+        ### q2 size가 8일때는 다시웹캠, 모든 설정값 초기화
+        if q2.qsize()>=8:
           name_list=[]
           img = cv2.addWeighted(img,1,upload_image,0,0)
 
@@ -180,13 +191,16 @@ def handler(q1,q2,q3):
                 q2.put((1))
             
             if q2.qsize()==4:     # 찰칵
-                time.sleep(1.5)
+                time.sleep(1)
+            
+            if q2.qsize()==5:
+                time.sleep(0.5)
                 q2.put((1))
             
-            if q3.qsize()==1 and q2.qsize()==5:   # q3에 촬영된 이미지 이름이 들어오고, q2 size가 4일때(=촬영했을때)
+            if q3.qsize()==1 and q2.qsize()==6:   # q3에 촬영된 이미지 이름이 들어오고, q2 size가 5일때(=촬영했을때)
                 shoot_image_time = q3.get()
                 # print(shoot_image_time,"handler")
-                time.sleep(1)
+                time.sleep(0.5)
 
                 ## API 통신 + 결과 이미지 저장
                 files = {'photo': open('D:/ai-festival/practice/image/'+shoot_image_time+'.png' , 'rb'), 'referral_id':'0000'}
@@ -199,7 +213,7 @@ def handler(q1,q2,q3):
                     filename = result_url.split("/")[-1]         # url에서 맨뒤 "/" 뒤에 이름 가져오기
 
                     save_img = Image.open(requests.get(result_url, stream = True).raw)    # 결과 url에서 image 받아서 save
-                    save_img.save('D:/ai-festival/practice/save_image/'+ filename)
+                    save_img.save('D:/ai-festival/practice/save_image/'+shoot_image_time+"-"+ filename)
 
                     time.sleep(1)
                     q2.put((1))   # q2의 size가 6로 가기위해
@@ -209,25 +223,27 @@ def handler(q1,q2,q3):
                     print("한번더 촬영해주세요")
                     q2.put((1))   # 오류나도 다음 스테이지로 넘어가기위해서
                 
-            if q2.qsize() == 6:  # 촬영후 사진 10초간 보여줌
+            if q2.qsize() == 7:  # 촬영후 사진을 보여주는 단계
                 if keyboard.is_pressed("space"): # space 누르면 q2 size 변경
                     q2.put((1))
 
-            if q2.qsize()>=7:  # q2 큐의 size가 7 이상이면
+            if q2.qsize()>=8:  # q2 큐의 size가 8 이상이면
                 time.sleep(2)   # 2초를 쉬고 q1,q2를 초기화
                 q1.queue.clear()   # v를 안한상태로 되돌림
                 q2.queue.clear() 
             
-            if keyboard.is_pressed("esc"):
+            if keyboard.is_pressed("Esc"):
                 break
 
+        if keyboard.is_pressed("Esc"):
+            break
 
 if __name__ == '__main__':
     q1 = Queue()
     q2 = Queue()
     q3 = Queue(1)
 
-    thread1 = threading.Thread(target=cam, args=("Camera",0,q1,q2,q3,))
+    thread1 = threading.Thread(target=cam, args=("Camera",1,q1,q2,q3,))
     thread2 = threading.Thread(target=handler, args=(q1,q2,q3,))
 
     thread1.start()
