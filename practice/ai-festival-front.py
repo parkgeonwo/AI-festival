@@ -1,4 +1,3 @@
-from distutils.command.upload import upload
 import threading
 from queue import Queue
 import cv2
@@ -15,12 +14,12 @@ def cam(previewName, camID,q1,q2,q3,):
 
     # font
     # font = ImageFont.truetype('./fonts/SCDream6.otf',20)
-    font = ImageFont.truetype('D:/ai-festival/practice/fonts/SCDream6.otf',60)
+    font = ImageFont.truetype('D:/ai-festival/practice/fonts/SCDream6.otf',40)
 
     # 촬영했을때 image가 두개 저장되는거 방지
     name_list = []
 
-    max_num_hands = 1
+    max_num_hands = 10
 
     mp_hands = mp.solutions.hands        
     # mp_drawing = mp.solutions.drawing_utils
@@ -39,13 +38,20 @@ def cam(previewName, camID,q1,q2,q3,):
     knn = cv2.ml.KNearest_create()                # opencv의 k-nearst-neighbors 알고리즘 사용하여
     knn.train(angle, cv2.ml.ROW_SAMPLE, label)      # 학습을 시켜버림
 
-    # cv2.namedWindow(previewName)
+    cv2.namedWindow(previewName)
+    cv2.moveWindow(previewName, 1690,-35)
+
+    # full screen 만들기
+    # cv2.namedWindow(previewName, cv2.WINDOW_NORMAL)
+    # cv2.setWindowProperty(previewName,cv2.WND_PROP_FULLSCREEN,cv2.WINDOW_FULLSCREEN)
+    # cv2.moveWindow(previewName, 1705,0)
+
     cap = cv2.VideoCapture(camID)
 
     width = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
     height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
 
-    resize_width, resize_height = 2048,1280   # 2560, 1600  # 1920, 1440 # 2048,1280
+    resize_width, resize_height = 1290,730   # 2560, 1600  # 1920, 1440 # 2048,1280
 
     while cap.isOpened():   
         now = datetime.datetime.now()
@@ -55,11 +61,7 @@ def cam(previewName, camID,q1,q2,q3,):
         ret, img = cap.read() 
         if not ret:     
             continue     
-        
-        # full screen 만들기
-        cv2.namedWindow(previewName, cv2.WINDOW_NORMAL)
-        cv2.setWindowProperty(previewName,cv2.WND_PROP_FULLSCREEN,cv2.WINDOW_FULLSCREEN)
-
+    
         img = cv2.flip(img, 1)
         img = cv2.resize(img, (resize_width,resize_height))
 
@@ -101,7 +103,7 @@ def cam(previewName, camID,q1,q2,q3,):
         if q2.qsize() == 0:
             img = Image.fromarray(img)
             draw = ImageDraw.Draw(img)
-            draw.text( xy=((resize_width/4)+100,30), text="V를 하면 AI가 캐릭터를 만듭니다.", font=font, fill=(0,0,0)  )
+            draw.text( xy=((resize_width/4)+50,30), text="V를 하면 AI가 캐릭터를 만듭니다.", font=font, fill=(0,0,0)  )
             img = np.array(img)
 
         # text_color = (0,255,255)
@@ -158,9 +160,10 @@ def cam(previewName, camID,q1,q2,q3,):
 
         ### q2 size가 7일때는 API에서 받아온 이미지 노출
         if q2.qsize()==7:
-            upload_image = cv2.imread('D:/ai-festival/practice/save_image/'+name_list[0]+'-after.png')
             
-            if upload_image == None:
+            upload_image = cv2.imread('D:/ai-festival/practice/save_image/'+name_list[0]+'-after.png')
+
+            if upload_image is None:
                 upload_image = cv2.imread('D:/ai-festival/practice/save_image/error.png')
                 upload_image = cv2.resize(upload_image, (resize_width,resize_height))
 
